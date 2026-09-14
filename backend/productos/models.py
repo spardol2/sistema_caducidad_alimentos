@@ -1,5 +1,5 @@
+from django.conf import settings
 from django.db import models
-
 
 class Categoria(models.Model):
     nombre = models.CharField(max_length=100, unique=True)
@@ -81,3 +81,63 @@ class ProductoCodigo(models.Model):
 
     def __str__(self):
         return f'{self.codigo} - {self.producto.nombre}'
+class Inventario(models.Model):
+    class Estado(models.TextChoices):
+        ACTIVO = 'ACTIVO', 'Activo'
+        AGOTADO = 'AGOTADO', 'Agotado'
+        VENCIDO = 'VENCIDO', 'Vencido'
+
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='inventario'
+    )
+
+    producto = models.ForeignKey(
+        Producto,
+        on_delete=models.PROTECT,
+        related_name='inventarios'
+    )
+
+    compra = models.ForeignKey(
+        'compras.Compra',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inventarios'
+    )
+
+    cantidad_inicial = models.DecimalField(
+        max_digits=10,
+        decimal_places=2
+    )
+
+    cantidad_disponible = models.DecimalField(
+        max_digits=10,
+        decimal_places=2
+    )
+
+    fecha_compra = models.DateField()
+    fecha_vencimiento = models.DateField()
+
+    estado = models.CharField(
+        max_length=10,
+        choices=Estado.choices,
+        default=Estado.ACTIVO
+    )
+
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'inventarios'
+        verbose_name = 'Inventario'
+        verbose_name_plural = 'Inventarios'
+        ordering = ['fecha_vencimiento']
+
+    def __str__(self):
+        return (
+            f'{self.producto.nombre} - '
+            f'{self.usuario.email} - '
+            f'Vence: {self.fecha_vencimiento}'
+        )
