@@ -3,9 +3,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Categoria, Producto, ProductoCodigo
+from .models import Categoria, Inventario, Producto, ProductoCodigo
 from .serializers import (
     CategoriaSerializer,
+    InventarioSerializer,
     ProductoCodigoCreateSerializer,
     ProductoSerializer,
 )
@@ -85,3 +86,34 @@ class BuscarProductoPorCodigoView(APIView):
         serializer = ProductoSerializer(producto_codigo.producto)
 
         return Response(serializer.data)
+class InventarioListCreateView(generics.ListCreateAPIView):
+    serializer_class = InventarioSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Inventario.objects.filter(
+            usuario=self.request.user
+        ).select_related(
+            'producto',
+            'producto__categoria'
+        ).order_by(
+            'fecha_vencimiento'
+        )
+
+    def perform_create(self, serializer):
+        serializer.save(
+            usuario=self.request.user
+        )
+
+
+class InventarioDetailView(generics.RetrieveUpdateAPIView):
+    serializer_class = InventarioSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Inventario.objects.filter(
+            usuario=self.request.user
+        ).select_related(
+            'producto',
+            'producto__categoria'
+        )

@@ -7,6 +7,8 @@ from .views import (
     ProductoCodigoListCreateView,
     ProductoDetailView,
     ProductoListCreateView,
+    InventarioDetailView,
+    InventarioListCreateView,
 )
 
 
@@ -40,5 +42,15 @@ urlpatterns = [
         '<int:pk>/',
         ProductoDetailView.as_view(),
         name='producto-detail'
+    ),
+    path(
+    'inventario/',
+    InventarioListCreateView.as_view(),
+    name='inventario-list-create'
+    ),
+    path(
+        'inventario/<int:pk>/',
+        InventarioDetailView.as_view(),
+        name='inventario-detail'
     ),
 ]
