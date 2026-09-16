@@ -1,10 +1,10 @@
+from datetime import datetime, timedelta
+import random
+
 from django.utils import timezone
 from rest_framework import serializers
 
 from .models import Categoria, Inventario, Producto, ProductoCodigo
-
-from datetime import timedelta
-import random
 
 
 class CategoriaSerializer(serializers.ModelSerializer):
@@ -36,11 +36,25 @@ class ProductoCodigoSerializer(serializers.ModelSerializer):
         ]
 
 
+class ProductoCodigoCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductoCodigo
+        fields = [
+            'id',
+            'codigo',
+            'tipo',
+        ]
+        read_only_fields = [
+            'id',
+        ]
+
+
 class ProductoSerializer(serializers.ModelSerializer):
     categoria_nombre = serializers.CharField(
         source='categoria.nombre',
         read_only=True
     )
+
     codigos = ProductoCodigoSerializer(
         many=True,
         read_only=True
@@ -67,17 +81,8 @@ class ProductoSerializer(serializers.ModelSerializer):
             'fecha_creacion',
             'fecha_actualizacion',
         ]
-class ProductoCodigoCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ProductoCodigo
-        fields = [
-            'id',
-            'codigo',
-            'tipo',
-        ]
-        read_only_fields = [
-            'id',
-        ]
+
+
 class InventarioSerializer(serializers.ModelSerializer):
     producto_nombre = serializers.CharField(
         source='producto.nombre',
@@ -90,6 +95,7 @@ class InventarioSerializer(serializers.ModelSerializer):
     )
 
     tiempo_restante_segundos = serializers.SerializerMethodField()
+
     tiempo_restante = serializers.SerializerMethodField()
 
     class Meta:
@@ -119,32 +125,80 @@ class InventarioSerializer(serializers.ModelSerializer):
             'fecha_actualizacion',
         ]
 
+    def validate(self, attrs):
+        cantidad_inicial = attrs.get('cantidad_inicial')
+        cantidad_disponible = attrs.get('cantidad_disponible')
+
+        if self.instance is not None:
+            if cantidad_inicial is None:
+                cantidad_inicial = self.instance.cantidad_inicial
+
+            if cantidad_disponible is None:
+                cantidad_disponible = self.instance.cantidad_disponible
+
+        if cantidad_inicial is not None and cantidad_inicial < 0:
+            raise serializers.ValidationError({
+                'cantidad_inicial': 'La cantidad no puede ser negativa.'
+            })
+
+        if cantidad_disponible is not None and cantidad_disponible < 0:
+            raise serializers.ValidationError({
+                'cantidad_disponible': 'La cantidad no puede ser negativa.'
+            })
+
+        if (
+            cantidad_inicial is not None
+            and cantidad_disponible is not None
+            and cantidad_disponible > cantidad_inicial
+        ):
+            raise serializers.ValidationError({
+                'cantidad_disponible': (
+                    'La cantidad disponible no puede ser mayor '
+                    'que la cantidad inicial.'
+                )
+            })
+
+        return attrs
+
     def create(self, validated_data):
         fecha_compra = validated_data.get(
             'fecha_compra',
             timezone.localdate()
         )
 
+        # Genera aleatoriamente el tiempo de vencimiento
+        # entre 7 y 60 días después de la compra.
         dias_vencimiento = random.randint(7, 60)
 
         validated_data['fecha_vencimiento'] = (
             fecha_compra + timedelta(days=dias_vencimiento)
         )
 
-        validated_data['estado'] = Inventario.Estado.ACTIVO
+        cantidad_disponible = validated_data.get(
+            'cantidad_disponible',
+            0
+        )
+
+        if cantidad_disponible <= 0:
+            validated_data['estado'] = Inventario.Estado.AGOTADO
+        else:
+            validated_data['estado'] = Inventario.Estado.ACTIVO
 
         return super().create(validated_data)
 
     def get_tiempo_restante_segundos(self, obj):
         ahora = timezone.now()
+
         vencimiento = timezone.make_aware(
-            timezone.datetime.combine(
+            datetime.combine(
                 obj.fecha_vencimiento,
-                timezone.datetime.min.time()
+                datetime.min.time()
             )
         )
 
-        segundos = int((vencimiento - ahora).total_seconds())
+        segundos = int(
+            (vencimiento - ahora).total_seconds()
+        )
 
         return max(segundos, 0)
 
