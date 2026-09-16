@@ -1,3 +1,6 @@
+from datetime import timedelta
+
+from django.utils import timezone
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -86,6 +89,8 @@ class BuscarProductoPorCodigoView(APIView):
         serializer = ProductoSerializer(producto_codigo.producto)
 
         return Response(serializer.data)
+
+
 class InventarioListCreateView(generics.ListCreateAPIView):
     serializer_class = InventarioSerializer
     permission_classes = [IsAuthenticated]
@@ -116,4 +121,46 @@ class InventarioDetailView(generics.RetrieveUpdateAPIView):
         ).select_related(
             'producto',
             'producto__categoria'
+        )
+
+    def perform_update(self, serializer):
+        inventario = serializer.save()
+
+        if inventario.cantidad_disponible <= 0:
+            inventario.cantidad_disponible = 0
+            inventario.estado = Inventario.Estado.AGOTADO
+
+        elif inventario.fecha_vencimiento < timezone.localdate():
+            inventario.estado = Inventario.Estado.VENCIDO
+
+        else:
+            inventario.estado = Inventario.Estado.ACTIVO
+
+        inventario.save(
+            update_fields=[
+                'cantidad_disponible',
+                'estado',
+                'fecha_actualizacion',
+            ]
+        )
+
+
+class InventarioProximoVencimientoView(generics.ListAPIView):
+    serializer_class = InventarioSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        hoy = timezone.localdate()
+        fecha_limite = hoy + timedelta(days=30)
+
+        return Inventario.objects.filter(
+            usuario=self.request.user,
+            cantidad_disponible__gt=0,
+            fecha_vencimiento__gte=hoy,
+            fecha_vencimiento__lte=fecha_limite,
+        ).select_related(
+            'producto',
+            'producto__categoria'
+        ).order_by(
+            'fecha_vencimiento'
         )
