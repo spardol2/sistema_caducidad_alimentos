@@ -31,7 +31,6 @@ class DetalleCompraSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 'La cantidad debe ser mayor que cero.'
             )
-
         return value
 
     def validate_precio_unitario(self, value):
@@ -39,13 +38,11 @@ class DetalleCompraSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 'El precio unitario no puede ser negativo.'
             )
-
         return value
 
 
 class CompraSerializer(serializers.ModelSerializer):
     detalles = DetalleCompraSerializer(many=True)
-
     supermercado_nombre = serializers.CharField(
         source='supermercado.nombre',
         read_only=True
@@ -74,13 +71,11 @@ class CompraSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 'La compra debe tener al menos un producto.'
             )
-
         return value
 
     @transaction.atomic
     def create(self, validated_data):
         detalles_data = validated_data.pop('detalles')
-
         usuario = self.context['request'].user
 
         compra = Compra.objects.create(
@@ -93,7 +88,6 @@ class CompraSerializer(serializers.ModelSerializer):
         for detalle_data in detalles_data:
             cantidad = detalle_data['cantidad']
             precio_unitario = detalle_data.get('precio_unitario')
-
             subtotal = detalle_data.get('subtotal')
 
             if subtotal is None and precio_unitario is not None:
@@ -117,11 +111,7 @@ class CompraSerializer(serializers.ModelSerializer):
 
 
 class CompraDetalleSerializer(serializers.ModelSerializer):
-    detalles = DetalleCompraSerializer(
-        many=True,
-        read_only=True
-    )
-
+    detalles = DetalleCompraSerializer(many=True, read_only=True)
     supermercado_nombre = serializers.CharField(
         source='supermercado.nombre',
         read_only=True
@@ -139,4 +129,10 @@ class CompraDetalleSerializer(serializers.ModelSerializer):
             'detalles',
             'fecha_creacion',
         ]
-        read_only_fields = fields
+        read_only_fields = [
+            'id',
+            'supermercado_nombre',
+            'total',
+            'detalles',
+            'fecha_creacion',
+        ]
